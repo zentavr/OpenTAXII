@@ -3,7 +3,10 @@ from opentaxii.signals import (
     CONTENT_BLOCK_CREATED, INBOX_MESSAGE_CREATED,
     SUBSCRIPTION_CREATED
 )
-from opentaxii.taxii.converters import blob_to_service_entity
+
+from ..entities import (
+    Collection, ContentBlock, Subscription, ResultSet,
+    ServiceDefinition)
 
 log = structlog.getLogger(__name__)
 
@@ -18,19 +21,55 @@ class PersistenceManager(object):
         instance of persistence API class
     '''
 
-    def __init__(self, server, api):
-        self.server = server
-        self.api = api
+    def __init__(self, persistence_api):
+        self.api = persistence_api
 
-    # Methods only used in the CLI scripts provided with OpenTAXII.
+    def save_resource(self, resource):
+        if isinstance(resource, Collection):
+            obj = self.api.save_collection(resource)
+        elif isinstance(resource, ServiceDefinition):
+            obj = self.api.save_service(resource)
+        elif isinstance(resource, ContentBlock):
+            obj = self.api.save_content_block(resource)
+        elif isinstance(resource, Subscription):
+            obj = self.api.save_subscription(resource)
+        elif isinstance(resource, ResultSet):
+            obj = self.api.save_result_set(resource)
+        else:
+            raise ValueError(
+                'Unknown resource type "{}"'.format(type(resource)))
 
-    def create_service(self, entity):
-        '''Create a service.
+        return obj
 
-        NOTE: Additional method that is only used in the helper scripts
-        shipped with OpenTAXII.
-        '''
-        return self.api.create_service(entity)
+    def get_resource(self, resource_class, id, **params):
+
+        if resource_class == Collection:
+            obj = self.api.get_collection(id, **params)
+        elif resource_class == ServiceDefinition:
+            obj = self.api.get_service(id, **params)
+        elif resource_class == ContentBlock:
+            obj = self.api.get_content_block(id, **params)
+        elif resource_class == Subscription:
+            obj = self.api.get_subscription(id, **params)
+        elif resource_class == ResultSet:
+            obj = self.api.get_result_set(id, **params)
+        else:
+            raise ValueError(
+                'Unknown resource type "{}"'.format(resource_class.__name__))
+        return obj
+
+    def get_resources(self, resource_class, **params):
+        if resource_class == Collection:
+            objs = self.api.get_collections(**params)
+        elif resource_class == ServiceDefinition:
+            objs = self.api.get_services(**params)
+        elif resource_class == ContentBlock:
+            objs = self.api.get_content_blocks(**params)
+        elif resource_class == Subscription:
+            objs = self.api.get_subscriptions(**params)
+        elif resource_class == ResultSet:
+            objs = self.api.get_result_sets(**params)
+        return objs
 
     def attach_collection_to_services(self, collection_id, service_ids):
         '''Attach collection to the services.
@@ -41,40 +80,9 @@ class PersistenceManager(object):
         return self.api.attach_collection_to_services(
             collection_id, service_ids)
 
-    def create_collection(self, entity):
-        '''Create a collection.
-
-        NOTE: Additional method that is only used in the helper scripts
-        shipped with OpenTAXII.
-        '''
-        collection = self.api.create_collection(entity)
-        log.info("collection.created", collection=collection.name)
-        return collection
-
-    def create_services_from_object(self, services_config):
-        '''Create services from configuration object and persis them.
-
-        NOTE: Additional method that is only used in the helper scripts
-        shipped with OpenTAXII.
-        '''
-
-        for blob in services_config:
-            service = blob_to_service_entity(blob)
-            self.create_service(service)
-
-            log.info("service.created", id=service.id, type=service.type)
-
-    # =================================================================
-
-    def get_services(self):
-        '''Get configured services.
-
-        Methods loads services entities via persistence API.
-
-        :return: list of service entities.
-        :rtype: list of :py:class:`opentaxii.taxii.entities.ServiceEntity`
-        '''
-        return self.api.get_services()
+    def get_collection_by_name(self, name, service_id=None):
+        return self.api.get_collection_by_name(
+            name, service_id=service_id)
 
     def get_services_for_collection(self, collection):
         '''Get the services associated with a collection.
@@ -87,83 +95,6 @@ class PersistenceManager(object):
         '''
 
         return self.api.get_services(collection_id=collection.id)
-
-    def get_collections(self, service_id):
-        '''Get the collections associated with a service.
-
-        :param str service_id: ID of the service in question
-
-        :return: list of collection entities.
-        :rtype: list of :py:class:`opentaxii.taxii.entities.CollectionEntity`
-        '''
-
-        return self.api.get_collections(service_id)
-
-    def get_collection(self, name, service_id):
-        '''Get a collection by name and service ID.
-
-        According to TAXII spec collection name is unique per service instance.
-        Method retrieves collection entity using collection name
-        ``name`` and service ID ``service_id`` as a composite key.
-
-        :param str name: a collection name
-        :param str service_id: ID of a service
-
-        :return: collection entity
-        :rtype: :py:class:`opentaxii.taxii.entities.CollectionEntity`
-        '''
-        return self.api.get_collection(name, service_id)
-
-    def create_inbox_message(self, entity):
-        '''Create an inbox message.
-
-        Methods emits :py:const:`opentaxii.signals.INBOX_MESSAGE_CREATED`
-        signal.
-
-        :param `opentaxii.taxii.entities.InboxMessageEntity` entity:
-            inbox message entity in question
-        :return: updated inbox message entity
-        :rtype: :py:class:`opentaxii.taxii.entities.InboxMessageEntity`
-        '''
-
-        if self.server.config['save_raw_inbox_messages']:
-            entity = self.api.create_inbox_message(entity)
-            INBOX_MESSAGE_CREATED.send(self, inbox_message=entity)
-
-        return entity
-
-    def create_content(self, content, service_id=None, inbox_message_id=None,
-                       collections=None):
-        '''Create a content block.
-
-        Methods emits :py:const:`opentaxii.signals.CONTENT_BLOCK_CREATED`
-        signal.
-
-        :param `opentaxii.taxii.entities.ContentBlockEntity` entity:
-                content block in question
-        :param str service_id: ID of an inbox service via which content
-                block was created
-        :param `opentaxii.taxii.entities.InboxMessageEntity` inbox_message:
-                inbox message that delivered the content block
-        :param list collections: a list of destination collections as
-                :py:class:`opentaxii.taxii.entities.CollectionEntity`
-        :return: updated content block entity
-        :rtype: :py:class:`opentaxii.taxii.entities.ContentBlockEntity`
-        '''
-
-        if inbox_message_id:
-            content.inbox_message_id = inbox_message_id
-
-        collections = collections or []
-        collection_ids = [c.id for c in collections]
-        content = self.api.create_content_block(
-            content, collection_ids=collection_ids, service_id=service_id)
-
-        CONTENT_BLOCK_CREATED.send(
-            self, content_block=content,
-            collection_ids=collection_ids, service_id=service_id)
-
-        return content
 
     def get_content_blocks_count(self, collection_id, start_time=None,
                                  end_time=None, bindings=None):
@@ -211,83 +142,10 @@ class PersistenceManager(object):
             limit=limit,
         )
 
-    def create_result_set(self, entity):
-        '''Create a result set.
-
-        :param `opentaxii.taxii.entities.ResultSetEntity` entity:
-            result set entity in question
-
-        :return: updated result set entity
-        :rtype: :py:class:`opentaxii.taxii.entities.ResultSetEntity`
-        '''
-        return self.api.create_result_set(entity)
-
-    def get_result_set(self, result_set_id):
-        '''Get a result set entity by ID.
-
-        :param str result_set_id: ID of a result set.
-
-        :return: result set entity
-        :rtype: :py:class:`opentaxii.taxii.entities.ResultSetEntity`
-        '''
-        return self.api.get_result_set(result_set_id)
-
-    def create_subscription(self, entity):
-        '''Create a subscription.
-
-        Methods emits :py:const:`opentaxii.signals.SUBSCRIPTION_CREATED`
-        signal.
-
-        :param `opentaxii.taxii.entities.SubscriptionEntity` entity:
-            subscription entity in question.
-
-        :return: updated subscription entity
-        :rtype: :py:class:`opentaxii.taxii.entities.SubscriptionEntity`
-        '''
-
-        created = self.api.create_subscription(entity)
-
-        SUBSCRIPTION_CREATED.send(self, subscription=created)
-
-        return created
-
-    def get_subscription(self, subscription_id):
-        '''Get a subscription entity by ID.
-
-        :param str subscription_id: ID of a subscription
-
-        :return: subscription entity
-        :rtype: :py:class:`opentaxii.taxii.entities.SubscriptionEntity`
-        '''
-        return self.api.get_subscription(subscription_id)
-
-    def get_subscriptions(self, service_id):
-        '''Get the subscriptions attached to/created via a service.
-
-        :param str service_id: ID of a service
-
-        :return: list of subscription entities
-        :rtype: list of :py:class:`opentaxii.taxii.entities.SubscriptionEntity`
-        '''
-        return self.api.get_subscriptions(service_id=service_id)
-
-    def update_subscription(self, subscription):
-        '''Update a subscription status.
-
-        :param `opentaxii.taxii.entities.SubscriptionEntity` subscription:
-            subscription entity in question
-
-        :return: updated subscription entity
-        :rtype: :py:class:`opentaxii.taxii.entities.SubscriptionEntity`
-        '''
-        return self.api.update_subscription(subscription)
-
-    def get_domain(self, service_id):
+    def get_domain(self):
         '''Get configured domain name needed to create absolute URLs.
-
-        :param str service_id: ID of a service
         '''
-        return self.api.get_domain(service_id)
+        return self.api.get_domain()
 
     def delete_content_blocks(self, collection_name, start_time,
                               end_time=None):

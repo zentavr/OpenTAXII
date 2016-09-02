@@ -17,7 +17,7 @@
   destination_collection_required: yes
   accept_all_content: no
   authentication_required: yes
-  supported_content:
+  supported_content_bindings:
     - urn:stix.mitre.org:xml:1.1.1
     - urn:custom.example.com:json:0.0.1
   protocol_bindings:

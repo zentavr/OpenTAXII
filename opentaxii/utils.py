@@ -4,21 +4,14 @@ import structlog
 import importlib
 import base64
 import binascii
+import pytz
 
-from six.moves import urllib
+from datetime import datetime
+
 
 from .exceptions import InvalidAuthHeader
 
 log = structlog.getLogger(__name__)
-
-
-def get_path_and_address(domain, address):
-    parsed = urllib.parse.urlparse(address)
-
-    if parsed.scheme:
-        return None, address
-    else:
-        return address, domain + address
 
 
 def import_class(module_class_name):
@@ -27,7 +20,7 @@ def import_class(module_class_name):
     return getattr(module, class_name)
 
 
-def initialize_api(api_config):
+def load_inner_api(api_config):
     class_name = api_config['class']
     cls = import_class(class_name)
     params = api_config.get('parameters', None)
@@ -37,7 +30,7 @@ def initialize_api(api_config):
     else:
         instance = cls()
 
-    log.info("api.initialized", api=class_name)
+    log.info("inner-api.loaded", api=class_name)
 
     return instance
 
@@ -60,10 +53,17 @@ def parse_basic_auth_token(token):
 class PlainRenderer(object):
 
     def __call__(self, logger, name, event_dict):
+
+        logger = event_dict.pop('logger')
+        level = event_dict.pop('level')
+        event = event_dict.pop('event')
+        timestamp = event_dict.pop('timestamp')
+
         pairs = ', '.join(['%s=%s' % (k, v) for k, v in event_dict.items()])
         return (
             '{timestamp} [{logger}] {level}: {event} {{{pairs}}}'
-            .format(pairs=pairs, **event_dict))
+            .format(timestamp=timestamp, logger=logger, level=level,
+                    event=event, pairs=pairs))
 
 
 def configure_logging(logging_levels, plain=False):
@@ -110,3 +110,29 @@ def _remove_all_existing_log_handlers():
 
     root_logger = logging.getLogger()
     del root_logger.handlers[:]
+
+
+def get_utc_now():
+    return datetime.utcnow().replace(tzinfo=pytz.UTC)
+
+
+def is_content_supported(supported_bindings, content_binding, version=None):
+
+    if not hasattr(content_binding, 'binding_id') or version == 10:
+        binding_id = content_binding
+        subtype = None
+    else:
+        binding_id = content_binding.binding_id
+
+        # FIXME: may be not the best option
+        subtype = (
+            content_binding.subtype_ids[0] if content_binding.subtype_ids
+            else None)
+
+    matches = [
+        ((supported.binding == binding_id) and
+         (not supported.subtypes or subtype in supported.subtypes))
+        for supported in supported_bindings
+    ]
+
+    return any(matches)

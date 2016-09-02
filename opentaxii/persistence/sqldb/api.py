@@ -9,7 +9,13 @@ from . import converters as conv
 
 from .models import (
     Base, Service, ResultSet, ContentBlock,
-    DataCollection, InboxMessage, Subscription)
+    Collection, InboxMessage, Subscription)
+
+
+from opentaxii.taxii1x.services import (
+    DiscoveryService, InboxService, CollectionManagementService,
+    PollService
+)
 
 __all__ = ['SQLDatabaseAPI']
 
@@ -47,45 +53,60 @@ class SQLDatabaseAPI(OpenTAXIIPersistenceAPI):
 
     def get_services(self, collection_id=None):
         if collection_id:
-            collection = DataCollection.query.get(collection_id)
+            collection = Collection.query.get(collection_id)
             services = collection.services
         else:
             services = Service.query.all()
-        return [conv.to_service_entity(s) for s in services]
+        return prepare_service_instances(services)
 
     def get_service(self, service_id):
-        return conv.to_service_entity(Service.get(service_id))
+        services = Service.query.all()
 
-    def update_service(self, obj):
+        for prepared in prepare_service_instances(services):
+            if prepared.id == service_id:
+                return prepared
 
-        service = Service.query.get(obj.id) if obj.id else None
+    def save_service(self, service_definition):
+        service = (
+            Service.query.get(service_definition.id)
+            if service_definition.id else None)
         if service:
-            service.type = obj.type
-            service.properties = obj.properties
+            service.type = service_definition.service_type
+            service.properties = service_definition.properties
         else:
             service = Service(
-                id=obj.id, type=obj.type,
-                properties=obj.properties)
+                id=service_definition.id,
+                type=service_definition.service_type,
+                properties=service_definition.properties)
 
-        service = self.db.session.add(service)
+        self.db.session.add(service)
         self.db.session.commit()
+        return self.get_service(service.id)
 
-        return conv.to_service_entity(service)
+    def get_collections(self, service_id=None):
+        if service_id:
+            service = Service.query.get(service_id)
+            if not service:
+                return []
+            collections = service.collections
+        else:
+            collections = Collection.query.all()
 
-    def create_service(self, entity):
-        return self.update_service(entity)
-
-    def get_collections(self, service_id):
-        service = Service.query.get(service_id)
         return [
-            conv.to_collection_entity(c) for c in service.collections]
+            conv.to_collection_entity(c) for c in collections]
 
-    def get_collection(self, name, service_id):
+    def get_collection(self, id):
+        collection = Collection.query.get(id)
+        if not collection:
+            return None
+        return conv.to_collection_entity(collection)
+
+    def get_collection_by_name(self, name, service_id):
 
         collection = (
-            DataCollection.query.join(Service.collections)
-                                .filter(Service.id == service_id)
-                                .filter(DataCollection.name == name)).first()
+            Collection.query.join(Service.collections)
+                            .filter(Service.id == service_id)
+                            .filter(Collection.name == name)).first()
 
         if collection:
             return conv.to_collection_entity(collection)
@@ -100,7 +121,7 @@ class SQLDatabaseAPI(OpenTAXIIPersistenceAPI):
 
         if collection_id:
             query = (query.join(ContentBlock.collections)
-                          .filter(DataCollection.id == collection_id))
+                          .filter(Collection.id == collection_id))
 
         if start_time:
             query = query.filter(
@@ -154,18 +175,30 @@ class SQLDatabaseAPI(OpenTAXIIPersistenceAPI):
             conv.to_block_entity(block)
             for block in query.yield_per(YIELD_PER_SIZE)]
 
-    def create_collection(self, entity):
+    def save_collection(self, entity):
 
-        _bindings = conv.serialize_content_bindings(entity.supported_content)
+        _bindings = conv.serialize_content_bindings(
+            entity.supported_content_bindings)
 
-        collection = DataCollection(
-            name=entity.name,
-            type=entity.type,
-            description=entity.description,
-            available=entity.available,
-            accept_all_content=entity.accept_all_content,
-            bindings=_bindings
-        )
+        collection = (
+            Collection.query.filter(Collection.name == entity.name).first())
+
+        if collection:
+            attrs = [
+                'name', 'type', 'description', 'available',
+                'accept_all_content']
+            for attr in attrs:
+                setattr(collection, attr, getattr(entity, attr, None))
+            collection.bindings = _bindings
+        else:
+            collection = Collection(
+                name=entity.name,
+                type=entity.type,
+                description=entity.description,
+                available=entity.available,
+                accept_all_content=entity.accept_all_content,
+                bindings=_bindings
+            )
 
         self.db.session.add(collection)
         self.db.session.commit()
@@ -174,7 +207,7 @@ class SQLDatabaseAPI(OpenTAXIIPersistenceAPI):
 
     def attach_collection_to_services(self, collection_id, service_ids):
 
-        collection = DataCollection.query.get(collection_id)
+        collection = Collection.query.get(collection_id)
 
         if not collection:
             raise ValueError("Collection with id {} does not exist"
@@ -223,8 +256,7 @@ class SQLDatabaseAPI(OpenTAXIIPersistenceAPI):
 
         return conv.to_inbox_message_entity(message)
 
-    def create_content_block(self, entity, collection_ids=None,
-                             service_id=None):
+    def create_content_block(self, entity, collection_ids=None):
 
         if entity.content_binding:
             binding = entity.content_binding.binding
@@ -255,8 +287,8 @@ class SQLDatabaseAPI(OpenTAXIIPersistenceAPI):
         if not collection_ids:
             return
 
-        criteria = DataCollection.id.in_(collection_ids)
-        new_collections = DataCollection.query.filter(criteria)
+        criteria = Collection.id.in_(collection_ids)
+        new_collections = Collection.query.filter(criteria)
 
         content_block.collections.extend(new_collections)
 
@@ -343,7 +375,7 @@ class SQLDatabaseAPI(OpenTAXIIPersistenceAPI):
     def delete_content_blocks(self, collection_name, start_time,
                               end_time=None):
 
-        collection = DataCollection.query.filter_by(name=collection_name).one()
+        collection = Collection.query.filter_by(name=collection_name).one()
 
         if not collection:
             raise ValueError("Collection with name '{}' does not exist"
@@ -351,8 +383,8 @@ class SQLDatabaseAPI(OpenTAXIIPersistenceAPI):
 
         content_blocks_query = (
             self.db.session.query(ContentBlock.id)
-                           .join(DataCollection.content_blocks)
-                           .filter(DataCollection.id == collection.id)
+                           .join(Collection.content_blocks)
+                           .filter(Collection.id == collection.id)
                            .filter(ContentBlock.timestamp_label > start_time))
 
         if end_time:
@@ -368,8 +400,57 @@ class SQLDatabaseAPI(OpenTAXIIPersistenceAPI):
             self.db.session
             .query(func.count(ContentBlock.id))
             .join(ContentBlock.collections)
-            .filter(DataCollection.id == collection.id)).scalar()
+            .filter(Collection.id == collection.id)).scalar()
 
         self.db.session.commit()
 
         return counter
+
+
+def prepare_service_instances(service_models):
+    '''Get services registered with this TAXII server instance.
+
+    :param list service_ids: list of service IDs (as strings)
+
+    :return: list of services
+    :rtype: list of
+            :py:class:`opentaxii.taxii.services.abstract.TAXIIService`
+    '''
+
+    # Services needs to be created all at once to ensure that
+    # discovery services list all active advertised services
+
+    discovery_services = []
+    services = []
+
+    type_to_service_map = {
+        'inbox': InboxService,
+        'discovery': DiscoveryService,
+        'collection_management': CollectionManagementService,
+        'poll': PollService
+    }
+
+    for service_model in service_models:
+
+        if service_model.type not in type_to_service_map:
+            raise ValueError('Unknown service type "{}"'
+                             .format(service_model.type))
+
+        properties = dict(service_model.properties)
+        advertised = properties.pop('advertised_services', None)
+
+        service = type_to_service_map[service_model.type](
+            id=service_model.id,
+            properties=service_model.properties,
+            **properties)
+
+        services.append(service)
+
+        if advertised:
+            discovery_services.append((service, advertised))
+
+    for service, advertised in discovery_services:
+        service.set_advertised_services([
+            s for s in services if s.id in advertised])
+
+    return services

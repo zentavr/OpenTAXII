@@ -8,7 +8,7 @@ from sqlalchemy.schema import (
 from sqlalchemy.types import Integer, String, DateTime, Boolean, Text
 from sqlalchemy.ext.declarative import declarative_base
 
-__all__ = ['Base', 'ContentBlock', 'DataCollection', 'Service',
+__all__ = ['Base', 'ContentBlock', 'Collection', 'Service',
            'InboxMessage', 'ResultSet', 'Subscription']
 
 Base = declarative_base(name='Model')
@@ -55,7 +55,7 @@ class ContentBlock(AbstractModel):
     binding_subtype = Column(Text, index=True)
 
     collections = relationship(
-        'DataCollection',
+        'Collection',
         secondary=collection_to_content_block,
         backref='content_blocks',
         lazy='dynamic')
@@ -93,7 +93,7 @@ class Service(AbstractModel):
     _properties = Column(Text, nullable=False)
 
     collections = relationship(
-        'DataCollection',
+        'Collection',
         secondary=service_to_collection,
         backref='services')
 
@@ -108,7 +108,7 @@ class Service(AbstractModel):
         self._properties = json.dumps(properties)
 
 
-class DataCollection(AbstractModel):
+class Collection(AbstractModel):
 
     __tablename__ = 'data_collections'
 
@@ -125,7 +125,7 @@ class DataCollection(AbstractModel):
     volume = Column(Integer, default=0)
 
     def __repr__(self):
-        return ('DataCollection(name={obj.name}, type={obj.type})'
+        return ('Collection(name={obj.name}, type={obj.type})'
                 .format(obj=self))
 
 
@@ -177,7 +177,7 @@ class ResultSet(AbstractModel):
         ForeignKey(
             'data_collections.id', onupdate='CASCADE', ondelete='CASCADE'))
 
-    collection = relationship('DataCollection', backref='result_sets')
+    collection = relationship('Collection', backref='result_sets')
 
     bindings = Column(Text)
 
@@ -195,7 +195,7 @@ class Subscription(AbstractModel):
         Integer,
         ForeignKey(
             'data_collections.id', onupdate='CASCADE', ondelete='CASCADE'))
-    collection = relationship('DataCollection', backref='subscriptions')
+    collection = relationship('Collection', backref='subscriptions')
 
     params = Column(Text, nullable=True)
 

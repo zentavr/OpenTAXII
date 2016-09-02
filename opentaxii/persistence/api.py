@@ -9,7 +9,7 @@ class OpenTAXIIPersistenceAPI(object):
     def init_app(self, app):
         pass
 
-    def create_service(self, service_entity):
+    def save_service(self, service_definition):
         '''Create a service.
 
         NOTE: Additional data management method that is not used
@@ -59,7 +59,7 @@ class OpenTAXIIPersistenceAPI(object):
         '''
         raise NotImplementedError()
 
-    def get_collections(self, service_id):
+    def get_collections(self, service_id=None):
         '''Get the collections attached to a service.
 
         :param str service_id: ID of a service in question
@@ -69,7 +69,10 @@ class OpenTAXIIPersistenceAPI(object):
         '''
         raise NotImplementedError()
 
-    def get_collection(self, collection_name, service_id):
+    def get_collection(self, id):
+        raise NotImplementedError()
+    
+    def get_collection_by_name(self, collection_name, service_id):
         '''Get a collection by name and service ID.
 
         According to TAXII spec collection name is unique per service instance.
@@ -204,12 +207,10 @@ class OpenTAXIIPersistenceAPI(object):
         '''
         raise NotImplementedError()
 
-    def get_domain(self, service_id):
+    def get_domain(self):
         '''Get configured domain needed to create absolute URLs.
 
         Returns `None` by default.
-
-        :param str service_id: ID of a service
         '''
         return None
 

@@ -2,7 +2,7 @@ import anyconfig
 import argparse
 import structlog
 
-from opentaxii.taxii.entities import CollectionEntity
+from opentaxii.entities import Collection, ServiceDefinition
 from opentaxii.cli import app
 
 log = structlog.getLogger(__name__)
@@ -23,9 +23,30 @@ def create_services():
     services_config = anyconfig.load(args.config, forced_type="yaml")
 
     with app.app_context():
+        for service_params in services_config:
 
-        app.taxii_server.persistence.create_services_from_object(
-            services_config)
+            if not 'type' in service_params:
+                raise ValueError('No type specified for a service')
+
+            service_id = service_params.pop('id', None)
+            service_type = service_params.pop('type')
+
+            existing = ServiceDefinition.get(service_id)
+
+            if existing:
+                log.warning(
+                    "service.skipped.already_exists",
+                    id=existing.id,
+                    type=existing.__class__.__name__)
+            else:
+                service = ServiceDefinition(
+                        id=service_id,
+                        service_type=service_type,
+                        properties=service_params)
+                service = service.save()
+                log.info("service.created",
+                         id=service.id,
+                         type=service.__class__.__name__)
 
 
 def create_collections():
@@ -51,26 +72,27 @@ def create_collections():
             existing = None
 
             for service_id in service_ids:
-                existing = app.taxii_server.persistence.get_collection(
+                existing = Collection.get_by_name(
                     collection['name'],
-                    service_id)
+                    service_id=service_id)
                 if existing:
                     break
 
             if existing:
                 log.warning(
                     "collection.skipped.already_exists",
-                    collection_name=collection['name'],
+                    collection=collection['name'],
                     existing_id=existing.id)
                 continue
 
-            c = app.taxii_server.persistence.create_collection(
-                CollectionEntity(**collection))
+            c = Collection(**collection).save()
 
-            app.taxii_server.persistence.attach_collection_to_services(
+            app.managers.persistence.attach_collection_to_services(
                 c.id, service_ids=service_ids)
 
             created += 1
+
+            log.info("collection.created", collection=collection['name'])
 
 
 def delete_content_blocks():
@@ -103,5 +125,5 @@ def delete_content_blocks():
         end_time = args.end
 
         for collection in args.collection:
-            app.taxii_server.persistence.delete_content_blocks(
+            app.managers.persistence.delete_content_blocks(
                 collection, start_time=start_time, end_time=end_time)

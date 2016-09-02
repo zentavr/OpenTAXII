@@ -1,9 +1,8 @@
 import pytest
 
-from opentaxii.config import ServerConfig
 from opentaxii.middleware import create_app
-from opentaxii.server import TAXIIServer
 from opentaxii.utils import configure_logging
+from opentaxii.config import load_configuration
 
 from fixtures import DOMAIN
 
@@ -15,7 +14,7 @@ def setup_logging():
 
 def get_config_for_tests(domain=DOMAIN, persistence_db=None, auth_db=None):
 
-    config = ServerConfig()
+    config = load_configuration()
     config.update({
         'persistence_api': {
             'class': 'opentaxii.persistence.sqldb.SQLDatabaseAPI',
@@ -31,20 +30,15 @@ def get_config_for_tests(domain=DOMAIN, persistence_db=None, auth_db=None):
                 'create_tables': True,
                 'secret': 'dummy-secret-string-for-tests'
             }
-        }
+        },
+        'domain': domain
     })
-    config['domain'] = domain
     return config
 
 
 @pytest.fixture()
 def config(request):
     return get_config_for_tests()
-
-
-@pytest.fixture()
-def server(config):
-    return TAXIIServer(config)
 
 
 @pytest.fixture()

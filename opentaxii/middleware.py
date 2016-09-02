@@ -1,132 +1,144 @@
 import structlog
 import functools
-from flask import Flask, request, make_response, abort
+import importlib
+from flask import Flask, request, make_response, abort, current_app, g
 
-from .taxii.exceptions import (
+from .taxii1x.exceptions import (
     raise_failure, StatusMessageException, FailureStatus
 )
-from .taxii.utils import parse_message
-from .taxii.status import process_status_exception
-from .taxii.bindings import (
+from .taxii1x.utils import parse_message
+from .taxii1x.status import process_status_exception
+from .taxii1x.bindings import (
     MESSAGE_BINDINGS, SERVICE_BINDINGS, ALL_PROTOCOL_BINDINGS
 )
-from .taxii.http import (
+from .taxii1x.http import (
     get_http_headers, get_content_type, validate_request_headers_post_parse,
     validate_request_headers, validate_response_headers,
-    HTTP_X_TAXII_CONTENT_TYPES, HTTP_ALLOW, HTTP_AUTHORIZATION
+    HTTP_X_TAXII_CONTENT_TYPE, HTTP_ALLOW
 )
-from .exceptions import UnauthorizedException, InvalidAuthHeader
-from .utils import parse_basic_auth_token
-from .management import management
+from .utils import parse_basic_auth_token, load_inner_api
 from .local import release_context, context
+
+from . import external_api
+
+from .persistence import PersistenceManager
+from .auth import AuthManager
+from .entities import ServiceDefinition
+
 
 log = structlog.get_logger(__name__)
 
+from collections import namedtuple
+Managers = namedtuple('Managers', ['auth', 'persistence'])
 
-def create_app(server):
-    '''Create Flask application and attach TAXII server
-    instance ``server`` to it.
 
-    :param `opentaxii.server.TAXIIServer` server: TAXII server instance
-
+def create_app(config):
+    '''
     :return: Flask app
     '''
 
-    app = Flask(__name__)
-    app.taxii_server = server
+    app = Flask(__name__, static_folder=None)
+    app.managers = init_managers(config, app)
+    app.opentaxii_config = config
 
-    server.init_app(app)
+    external_api.init_app(app)
 
+    # add catch-all rule for TAXII requests
     app.add_url_rule(
-        "/<path:relative_path>", "opentaxii_services_view",
-        _server_wrapper(server), methods=['POST', 'OPTIONS'])
+        "/<path:relative_path>", "taxii_endpoints",
+        handle_taxii_request, methods=['GET', 'POST', 'OPTIONS'])
 
-    app.register_blueprint(management, url_prefix='/management')
-
+    # FIXME: tune accorting to request content-type
     app.register_error_handler(500, handle_internal_error)
     app.register_error_handler(StatusMessageException, handle_status_exception)
+
     app.before_request(
-        functools.partial(create_context_before_request, server))
+        functools.partial(authorize_and_prepare_context, app))
+    app.teardown_request(release_context_after_request)
+
+    setup_hooks(config)
+
+    # Populate custom local context, because using Flask local proxy
+    # is not possible with sophisticated inner API integrations
+    populate_context(app)
+
     return app
 
 
-def create_context_before_request(server):
-    context.account = _authenticate(server, request.headers)
-    context.server = server
+def setup_hooks(config):
+    signal_hooks = config['hooks']
+    if signal_hooks:
+        importlib.import_module(signal_hooks)
+        log.info("signal_hooks.imported", hooks=signal_hooks)
 
 
-def _server_wrapper(server):
+def init_managers(config, app):
+    persistence_manager = PersistenceManager(
+        load_inner_api(config['persistence_api']))
 
-    @functools.wraps(_process_with_service)
-    def wrapper(relative_path=""):
-        relative_path = '/' + relative_path
-        try:
+    auth_manager = AuthManager(
+        load_inner_api(config['auth_api']))
 
-            for service in server.get_services():
-                if service.path == relative_path:
+    persistence_manager.api.init_app(app)
+    auth_manager.api.init_app(app)
 
-                    if (service.authentication_required and
-                            context.account is None):
-                        raise UnauthorizedException()
+    managers = Managers(
+        auth=auth_manager,
+        persistence=persistence_manager)
 
-                    if not service.available:
-                        raise_failure("The service is not available")
+    return managers
 
-                    if request.method == 'POST':
-                        return _process_with_service(service)
-                    elif request.method == 'OPTIONS':
-                        return _process_options_request(service)
-        finally:
-            release_context()
 
+def populate_context(app):
+    context.config = app.opentaxii_config
+    context.managers = app.managers
+
+
+def authorize_and_prepare_context(app):
+    context.account = app.managers.auth.authenticate_request(request.headers)
+    populate_context(app)
+
+
+def release_context_after_request(exception=None):
+    release_context()
+
+
+def handle_taxii_request(relative_path=''):
+    relative_path = '/' + relative_path
+
+    if is_possibly_taxii1x_request(request):
+
+        for service in ServiceDefinition.get_all():
+            if service.path == relative_path:
+
+                if (service.authentication_required and
+                        context.account is None):
+                    raise UnauthorizedException()
+
+                if not service.available:
+                    raise_failure("The service is not available")
+
+                if request.method == 'POST':
+                    return _process_with_service(service)
+                elif request.method == 'OPTIONS':
+                    return _process_options_request(service)
+        abort(404)
+    elif is_possibly_taxii2x_request(request):
+        # Placeholder for TAXII2.0 support
+        abort(415)
+    else:
         abort(404)
 
-    return wrapper
+
+def is_possibly_taxii1x_request(request):
+    return (
+        'application/xml' in request.accept_mimetypes
+        and HTTP_X_TAXII_CONTENT_TYPE in request.headers)
 
 
-def _authenticate(server, headers):
-
-    auth_header = headers.get(HTTP_AUTHORIZATION)
-    if not auth_header:
-        return None
-
-    parts = auth_header.split(' ', 1)
-
-    if len(parts) != 2:
-        log.warning('auth.header_invalid', value=auth_header)
-        return None
-
-    auth_type, raw_token = parts
-    auth_type = auth_type.lower()
-
-    if auth_type == 'basic':
-
-        if not server.is_basic_auth_supported():
-            raise UnauthorizedException()
-
-        try:
-            username, password = parse_basic_auth_token(raw_token)
-        except InvalidAuthHeader:
-            log.error("auth.basic_auth.header_invalid",
-                      raw_token=raw_token, exc_info=True)
-            return None
-
-        token = server.auth.authenticate(username, password)
-
-    elif auth_type == 'bearer':
-        token = raw_token
-    else:
-        raise UnauthorizedException()
-
-    if not token:
-        raise UnauthorizedException()
-
-    account = server.auth.get_account(token)
-
-    if not account:
-        raise UnauthorizedException()
-
-    return account
+def is_possibly_taxii2x_request(request):
+    # TODO: extend
+    return ('application/json' in request.accept_mimetypes)
 
 
 def _process_with_service(service):

@@ -2,7 +2,7 @@ from libtaxii.constants import (
     VID_TAXII_HTTP_10, VID_TAXII_HTTPS_10,
     CB_STIX_XML_111)
 
-from opentaxii.taxii import entities
+from opentaxii import entities
 
 PROTOCOL_BINDINGS = [VID_TAXII_HTTP_10, VID_TAXII_HTTPS_10]
 
@@ -25,7 +25,7 @@ INBOX_B = dict(
     description='inbox-B description',
     destination_collection_required='yes',
     address='/relative/path/inbox-b',
-    supported_content=[CB_STIX_XML_111, CUSTOM_CONTENT_BINDING],
+    supported_content_bindings=[CB_STIX_XML_111, CUSTOM_CONTENT_BINDING],
     protocol_bindings=PROTOCOL_BINDINGS
 )
 
@@ -98,7 +98,7 @@ COLLECTION_DISABLED = "collection_disabled"
 
 
 COLLECTIONS_A = [
-    entities.CollectionEntity(**x) for x in
+    entities.Collection(**x) for x in
     [{
         'name': COLLECTION_OPEN,
         'available': True,
@@ -107,22 +107,22 @@ COLLECTIONS_A = [
 ]
 
 COLLECTIONS_B = [
-    entities.CollectionEntity(**x) for x in
+    entities.Collection(**x) for x in
     [{
         'name': COLLECTION_OPEN,
         'available': True,
         'accept_all_content': True,
-        'type': entities.CollectionEntity.TYPE_SET
+        'type': entities.Collection.TYPE_SET
     }, {
         'name': COLLECTION_ONLY_STIX,
         'available': True,
         'accept_all_content': False,
-        'supported_content': CONTENT_BINDINGS_ONLY_STIX
+        'supported_content_bindings': CONTENT_BINDINGS_ONLY_STIX
     }, {
         'name': COLLECTION_STIX_AND_CUSTOM,
         'available': True,
         'accept_all_content': False,
-        'supported_content': CONTENT_BINDINGS_STIX_AND_CUSTOM
+        'supported_content_bindings': CONTENT_BINDINGS_STIX_AND_CUSTOM
     }, {
         'name': COLLECTION_DISABLED,
         'available': False

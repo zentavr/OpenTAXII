@@ -1,13 +1,11 @@
-from opentaxii.server import TAXIIServer
-from opentaxii.config import ServerConfig
+from opentaxii.config import load_configuration
 from opentaxii.middleware import create_app
 from opentaxii.utils import configure_logging
 
+config = load_configuration()
+configure_logging(
+    config.get('logging', {'': 'info'}),
+    plain=True)
 
-config = ServerConfig()
-configure_logging(config['logging'], plain=True)
-
-server = TAXIIServer(config)
-
-app = create_app(server)
+app = create_app(config)
 app.debug = True
