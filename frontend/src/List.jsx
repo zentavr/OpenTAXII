@@ -4,7 +4,7 @@ import 'whatwg-fetch';
 export default class List extends Component {
     // initial state
     state = {
-        list: []
+        num: 0
     };
 
     componentWillMount(){
@@ -15,15 +15,27 @@ export default class List extends Component {
             }));
     }
 
+    _plusOne(){
+        this.setState({
+            num: this.state.num + 1
+        });
+    }
+
     render() {
         return (
             <div>
-                <ul>
-                    {this.state.list.map((item) => {
-                        return <li key={item.id}>{item.title}</li>;
-                    })}
-                </ul>
+                <Number num={this.state.num} onChangeNumber={()=>this._plusOne()} />
             </div>
         );
+    }
+}
+
+
+class Number extends Component {
+    render(){
+        return <span>
+            <button onClick={() => this.props.onChangeNumber()}>+1</button>
+            {this.props.num}
+        </span>
     }
 }
