@@ -46,3 +46,4 @@ def raise_failure(message, in_response_to='0'):
         FailureStatus,
         FailureStatus(message, in_response_to=in_response_to, e=ei),
         tb=tb)
+

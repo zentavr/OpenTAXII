@@ -4,9 +4,12 @@ from libtaxii.constants import (
     MSG_POLL_REQUEST, MSG_POLL_FULFILLMENT_REQUEST, SVC_POLL
 )
 
-from ..entities import ResultSetEntity
+from ...entities import ResultSet
 from .abstract import TAXIIService
 from .handlers import PollRequestHandler, PollFulfilmentRequestHandler
+
+from opentaxii.local import context
+
 
 log = structlog.getLogger(__name__)
 
@@ -21,7 +24,7 @@ class PollService(TAXIIService):
         MSG_POLL_FULFILLMENT_REQUEST: PollFulfilmentRequestHandler
     }
 
-    service_type = SVC_POLL
+    service_type = 'poll'
 
     subscription_required = False
 
@@ -50,7 +53,7 @@ class PollService(TAXIIService):
             else DEFAULT_MAX_RESULT_COUNT)
 
     def get_collection(self, name):
-        return self.server.persistence.get_collection(name, self.id)
+        return context.managers.persistence.get_collection(name, self.id)
 
     def get_offset_limit(self, part_number):
 
@@ -89,7 +92,7 @@ class PollService(TAXIIService):
     def create_result_set(self, collection, content_bindings=None,
                           timeframe=None):
 
-        entity = ResultSetEntity(
+        entity = ResultSet(
             id=self.generate_id(),
             collection_id=collection.id,
             content_bindings=content_bindings,

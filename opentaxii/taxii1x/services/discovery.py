@@ -6,7 +6,7 @@ from .handlers import DiscoveryRequestHandler
 
 class DiscoveryService(TAXIIService):
 
-    service_type = SVC_DISCOVERY
+    service_type = 'discovery'
 
     handlers = {
         MSG_DISCOVERY_REQUEST: DiscoveryRequestHandler

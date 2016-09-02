@@ -4,11 +4,8 @@ from .base_handlers import BaseMessageHandler
 import libtaxii.messages_11 as tm11
 import libtaxii.messages_10 as tm10
 
-from opentaxii.taxii.exceptions import raise_failure
-
-from ...converters import (
-    collection_to_feedcollection_information
-)
+from ...exceptions import raise_failure
+from ...converters import collection_to_feedcollection_information
 
 
 class CollectionInformationRequest11Handler(BaseMessageHandler):

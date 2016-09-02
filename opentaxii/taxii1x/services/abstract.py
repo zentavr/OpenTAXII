@@ -1,13 +1,21 @@
 import structlog
+import furl
 
 from libtaxii.common import generate_message_id
 from libtaxii.constants import (
-    VID_TAXII_XML_10, VID_TAXII_XML_11
+    VID_TAXII_XML_10, VID_TAXII_XML_11,
+    VID_TAXII_HTTP_10, VID_TAXII_HTTPS_10
 )
 
+from ...local import context
 from ..exceptions import StatusMessageException, raise_failure
-from ..bindings import PROTOCOL_TO_SCHEME
 from ..converters import service_to_service_instances
+
+
+PROTOCOL_TO_SCHEME = {
+    VID_TAXII_HTTP_10: 'http',
+    VID_TAXII_HTTPS_10: 'https'
+}
 
 
 class TAXIIService(object):
@@ -23,29 +31,27 @@ class TAXIIService(object):
         as a list of strings
     :param bool available: if the service is available
     :param bool authentication_required: if authentication required
-    :param str path: relative path if service is configured in the server
     '''
 
     id = None
     description = 'Default TAXII service description'
-    available = True
+    service_type = None
 
-    server = None
+    available = True
 
     authentication_required = False
 
     supported_message_bindings = [VID_TAXII_XML_10, VID_TAXII_XML_11]
     supported_protocol_bindings = ()
 
-    def __init__(self, id, server, address, description=None, path=None,
+    def __init__(self, id, address, description=None,
                  protocol_bindings=None, available=True,
-                 authentication_required=False):
+                 authentication_required=False,
+                 properties=None):
 
         self.id = id
-        self.server = server
-
-        self.address = address
-        self.path = path
+        self.address = add_domain_to_address(address)
+        self.path = str(furl.furl(address).path)
 
         self.description = description
         self.supported_protocol_bindings = (
@@ -53,6 +59,8 @@ class TAXIIService(object):
 
         self.available = available
         self.authentication_required = authentication_required
+
+        self.properties = properties
 
         self.log = structlog.getLogger(
             "{}.{}".format(self.__module__, self.__class__.__name__),
@@ -117,8 +125,10 @@ class TAXIIService(object):
 
         if binding in PROTOCOL_TO_SCHEME:
             scheme = PROTOCOL_TO_SCHEME[binding]
-            if scheme and not address.startswith(scheme):
-                address = scheme + address
+            f = furl.furl(address)
+            if scheme and scheme != f.scheme:
+                f.scheme = scheme
+            address = f.url
         else:
             self.log.warning("binding.not_recognized",
                              binding=binding, address=address)
@@ -129,3 +139,16 @@ class TAXIIService(object):
         return (
             "{}(id={}, address={})"
             .format(self.__class__.__name__, self.id, self.address))
+
+
+def add_domain_to_address(address):
+
+    domain = context.managers.persistence.get_domain()
+
+    f = furl.furl(address)
+    # clean up scheme and port because bindings have their own schemes
+    f.scheme = None
+    f.port = None
+    if not f.host:
+        f.host = domain
+    return f.url

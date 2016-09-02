@@ -15,7 +15,7 @@ from ...converters import (
     subscription_to_subscription_instance,
     parse_content_bindings
 )
-from ...entities import PollRequestParametersEntity, SubscriptionEntity
+from ....entities import PollRequestParameters, Subscription
 
 from .base_handlers import BaseMessageHandler
 from .poll_request_handlers import retrieve_collection
@@ -51,18 +51,18 @@ def action_subscribe(request, service, collection, version, **kwargs):
         supported_contents = []
         response_type = None
 
-    poll_request_params = PollRequestParametersEntity(
+    poll_request_params = PollRequestParameters(
         response_type=response_type,
         content_bindings=supported_contents,
     )
 
     # we are ignoring Delivery Parameters for now
 
-    subscription = SubscriptionEntity(
+    subscription = Subscription(
         service_id=service.id,
         collection_id=collection.id,
         poll_request_params=poll_request_params,
-        status=SubscriptionEntity.ACTIVE
+        status=Subscription.ACTIVE
     )
 
     return service.create_subscription(subscription)
@@ -70,16 +70,16 @@ def action_subscribe(request, service, collection, version, **kwargs):
 
 def action_unsubscribe(request, service, subscription, **kwargs):
     if subscription:
-        subscription.status = SubscriptionEntity.UNSUBSCRIBED
+        subscription.status = Subscription.UNSUBSCRIBED
         return service.update_subscription(subscription)
     else:
         # Spec says that unsubscribe should be successful even
         # if subscription doesn't exist
-        return SubscriptionEntity(
+        return Subscription(
             collection_id=None,
             service_id=service.id,
             subscription_id=request.subscription_id,
-            status=SubscriptionEntity.UNSUBSCRIBED)
+            status=Subscription.UNSUBSCRIBED)
 
 
 def action_status(service, subscription, **kwargs):
@@ -90,16 +90,16 @@ def action_status(service, subscription, **kwargs):
 
 
 def action_pause(service, subscription, **kwargs):
-    if subscription.status == SubscriptionEntity.PAUSED:
+    if subscription.status == Subscription.PAUSED:
         return subscription
-    subscription.status = SubscriptionEntity.PAUSED
+    subscription.status = Subscription.PAUSED
     return service.update_subscription(subscription)
 
 
 def action_resume(service, subscription, **kwargs):
-    if subscription.status != SubscriptionEntity.PAUSED:
+    if subscription.status != Subscription.PAUSED:
         return subscription
-    subscription.status = SubscriptionEntity.ACTIVE
+    subscription.status = Subscription.ACTIVE
     return service.update_subscription(subscription)
 
 

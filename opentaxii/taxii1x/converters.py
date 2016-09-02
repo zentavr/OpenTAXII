@@ -6,19 +6,17 @@ from libtaxii.constants import (
     VID_TAXII_SERVICES_10, VID_TAXII_SERVICES_11
 )
 
-from .entities import (
-    ContentBindingEntity, InboxMessageEntity, ContentBlockEntity,
-    ServiceEntity
-)
+from ..entities import (
+    ContentBinding, InboxMessage, ContentBlock)
 
 
 def parse_content_binding(raw_content_binding, version):
     if version == 10:
-        return ContentBindingEntity(
+        return ContentBinding(
             binding=raw_content_binding,
             subtypes=None)
     elif version == 11:
-        return ContentBindingEntity(
+        return ContentBinding(
             binding=raw_content_binding.binding_id,
             subtypes=raw_content_binding.subtype_ids)
 
@@ -65,7 +63,7 @@ def service_to_service_instances(service, version):
             )
         elif version == 11:
             instance = tm11.ServiceInstance(
-                service_type=service.service_type,
+                service_type=service.service_type.upper(),
                 services_version=VID_TAXII_SERVICES_11,
                 available=service.available,
                 protocol_binding=binding,
@@ -130,7 +128,7 @@ def inbox_to_receiving_inbox_instance(inbox):
             inbox_protocol=protocol_binding,
             inbox_address=inbox.get_absolute_address(protocol_binding),
             inbox_message_bindings=inbox.supported_message_bindings,
-            supported_contents=inbox.get_supported_content(version=11)
+            supported_contents=inbox.get_supported_content_bindings(version=11)
         ))
 
     return inbox_instances
@@ -151,10 +149,10 @@ def collection_to_feedcollection_information(service, collection, version):
             subscription_service_to_subscription_method(s, version=version))
 
     if collection.accept_all_content:
-        supported_content = []
+        supported_content_bindings = []
     else:
-        supported_content = content_binding_entities_to_content_bindings(
-            collection.supported_content, version=version)
+        supported_content_bindings = content_binding_entities_to_content_bindings(
+            collection.supported_content_bindings, version=version)
 
     if version == 11:
         inbox_instances = []
@@ -164,7 +162,7 @@ def collection_to_feedcollection_information(service, collection, version):
         return tm11.CollectionInformation(
             collection_name=collection.name,
             collection_description=collection.description,
-            supported_contents=supported_content,
+            supported_contents=supported_content_bindings,
             available=collection.available,
 
             push_methods=push_methods,
@@ -180,7 +178,7 @@ def collection_to_feedcollection_information(service, collection, version):
         return tm10.FeedInformation(
             feed_name=collection.name,
             feed_description=collection.description,
-            supported_contents=supported_content,
+            supported_contents=supported_content_bindings,
             available=collection.available,
 
             push_methods=push_methods,
@@ -281,7 +279,7 @@ def inbox_message_to_inbox_message_entity(inbox_message, service_id, version):
                 inclusive_end_timestamp_label=end
             ))
 
-    return InboxMessageEntity(**params)
+    return InboxMessage(**params)
 
 
 def content_block_to_content_block_entity(content_block, version,
@@ -294,7 +292,7 @@ def content_block_to_content_block_entity(content_block, version,
     message = content_block.message if version == 11 else None
 
     # TODO: What about signatures?
-    return ContentBlockEntity(
+    return ContentBlock(
         id=None,
         message=message,
         inbox_message_id=inbox_message_id,
@@ -325,12 +323,3 @@ def content_block_entity_to_content_block(entity, version):
             timestamp_label=entity.timestamp_label,
             message=entity.message,
         )
-
-
-def blob_to_service_entity(blob):
-
-    properties = dict(blob)
-    _id = properties.pop('id')
-    _type = properties.pop('type')
-
-    return ServiceEntity(id=_id, type=_type, properties=properties)

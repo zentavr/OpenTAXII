@@ -14,6 +14,8 @@ from .handlers import (
 
 class CollectionManagementService(TAXIIService):
 
+    service_type = 'collection_management'
+
     handlers = {
         MSG_COLLECTION_INFORMATION_REQUEST:
             CollectionInformationRequestHandler,
@@ -27,7 +29,6 @@ class CollectionManagementService(TAXIIService):
         MSG_MANAGE_FEED_SUBSCRIPTION_REQUEST:
             SubscriptionRequestHandler
     }
-    service_type = SVC_COLLECTION_MANAGEMENT
 
     subscription_message = "Default subscription message"
     subscription_supported = True

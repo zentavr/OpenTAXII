@@ -1,11 +1,11 @@
 
 from libtaxii.constants import (
-    SVC_INBOX, MSG_INBOX_MESSAGE, SD_ACCEPTABLE_DESTINATION,
+    MSG_INBOX_MESSAGE, SD_ACCEPTABLE_DESTINATION,
     ST_DESTINATION_COLLECTION_ERROR, ST_NOT_FOUND, SD_ITEM
 )
 
-from ..utils import is_content_supported
-from ..entities import ContentBindingEntity
+from ...utils import is_content_supported
+from ...entities import ContentBinding
 from ..exceptions import StatusMessageException
 
 from ..converters import (
@@ -19,7 +19,7 @@ from .handlers import InboxMessageHandler
 
 class InboxService(TAXIIService):
 
-    service_type = SVC_INBOX
+    service_type = 'inbox'
 
     handlers = {
         MSG_INBOX_MESSAGE: InboxMessageHandler
@@ -27,19 +27,17 @@ class InboxService(TAXIIService):
 
     destination_collection_required = False
     accept_all_content = False
-    supported_content = []
+    supported_content_bindings = []
 
     def __init__(self, accept_all_content=False,
                  destination_collection_required=False,
-                 supported_content=None, **kwargs):
+                 supported_content_bindings=None, **kwargs):
 
         super(InboxService, self).__init__(**kwargs)
 
         self.accept_all_content = accept_all_content
-
-        supported_content = supported_content or []
-        self.supported_content = [
-            ContentBindingEntity(c) for c in supported_content]
+        self.supported_content_bindings = [
+            ContentBinding(c) for c in (supported_content_bindings or [])]
 
         self.destination_collection_required = destination_collection_required
 
@@ -48,8 +46,8 @@ class InboxService(TAXIIService):
         if self.accept_all_content:
             return True
 
-        return is_content_supported(self.supported_content, content_binding,
-                                    version=version)
+        return is_content_supported(
+            self.supported_content_bindings, content_binding, version=version)
 
     def get_destination_collections(self):
         return self.server.persistence.get_collections(self.id)
@@ -110,14 +108,14 @@ class InboxService(TAXIIService):
 
         for instance in service_instances:
             instance.inbox_service_accepted_content = (
-                self.get_supported_content(version))
+                self.get_supported_content_bindings(version))
 
         return service_instances
 
-    def get_supported_content(self, version):
+    def get_supported_content_bindings(self, version):
 
         if self.accept_all_content:
             return []
 
         return content_binding_entities_to_content_bindings(
-            self.supported_content, version)
+            self.supported_content_bindings, version)

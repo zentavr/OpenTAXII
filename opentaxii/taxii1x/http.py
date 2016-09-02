@@ -10,7 +10,6 @@ from .exceptions import raise_failure
 # HTTP Headers
 HTTP_CONTENT_TYPE = 'Content-Type'
 HTTP_ACCEPT = 'Accept'
-HTTP_AUTHORIZATION = 'Authorization'
 HTTP_ALLOW = 'Allow'
 
 # TAXII-specific headers

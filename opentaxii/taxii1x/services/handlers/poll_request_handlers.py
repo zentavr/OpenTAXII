@@ -10,13 +10,13 @@ from libtaxii.constants import (
 )
 
 from .base_handlers import BaseMessageHandler
+from ....utils import get_utc_now
 from ...exceptions import StatusMessageException, raise_failure, FailureStatus
 from ....persistence.exceptions import ResultsNotReady
 from ...converters import (
     content_block_entity_to_content_block, parse_content_bindings,
     content_binding_entities_to_content_bindings
 )
-from ...utils import get_utc_now
 
 log = structlog.getLogger(__name__)
 
