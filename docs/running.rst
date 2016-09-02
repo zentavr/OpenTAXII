@@ -27,7 +27,7 @@ containers <http://flask.pocoo.org/docs/0.10/deploying/wsgi-standalone/>`_ that 
 
 To run OpenTAXII with Gunicorn execute::
     
-    (venv) $ gunicorn opentaxii.http:app --bind localhost:9000
+    (venv) $ gunicorn opentaxii.wsgi:app --bind localhost:9000
 
 Common practice is to wrap gunicorn execution into `supervisord <http://supervisord.org>`_, to be able to monitor, start, and stop it easily.
 
@@ -38,7 +38,7 @@ Example supervisord configuration file:
     [program:opentaxii]
 
     command =
-        /opt/eclecticiq/opentaxii-venv/bin/gunicorn opentaxii.http:app
+        /opt/eclecticiq/opentaxii-venv/bin/gunicorn opentaxii.wsgi:app
             --workers 2
             --log-level info
             --log-file -
