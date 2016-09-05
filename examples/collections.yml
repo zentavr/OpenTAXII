@@ -1,16 +1,17 @@
 ---
 
 - name: collection-A
+  description: Collection contains information about deadly japanese assasins
   available: true
   accept_all_content: true
   type: DATA_SET
-
   service_ids:
     - inbox_a
     - collection_management_a
     - poll_a
 
 - name: collection-B
+  description: TOP 10 villas in South France
   available: true
   accept_all_content: false
   supported_content_bindings:
@@ -22,6 +23,7 @@
     - poll_a
 
 - name: collection-C
+  description: Exported indicators for Cozy Duke malware
   available: true
   accept_all_content: false
   supported_content_bindings:
