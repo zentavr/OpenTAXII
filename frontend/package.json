@@ -17,6 +17,9 @@
     "eslint-plugin-react": "^5.2.1",
     "hjs-webpack": "^8.2.0",
     "react-hot-loader": "^3.0.0-beta.2",
+    "style-loader": "^0.13.1",
+    "css-loader": "^0.24.0",
+    "postcss-loader": "^0.11.1",
     "webpack": "^1.12.2",
     "webpack-dev-server": "^1.12.1"
   },

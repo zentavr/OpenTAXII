@@ -1,0 +1,36 @@
+body {
+    font-family: sans-serif;
+	font-weight: 400;
+	font-style: normal;
+}
+
+li {
+    /*list-style-type: none;
+    display: block;*/
+    margin: 10px 0px;
+}
+
+li ul {
+    padding-left: 0px;
+}
+
+li ul li {
+    list-style-type: none;
+    display: block;
+}
+
+span.resource-list-title {
+    text-transform: capitalize;
+}
+
+pre {
+    background-color: #f7f7f7;
+    border-radius: 3px;
+    padding: 16px;
+}
+
+code {
+    background-color: #f7f7f7;
+    border-radius: 3px;
+    padding: 2px;
+}

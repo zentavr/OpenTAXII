@@ -2,7 +2,7 @@ var buildConfig = require('hjs-webpack');
 
 var config = buildConfig({
   in: 'src/index',
-  out: 'dist',
+  out: '../opentaxii/static',
   clearBeforeBuild: true
 });
 
