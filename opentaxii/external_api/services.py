@@ -25,6 +25,5 @@ class ServiceDefinitionSchema(Schema):
 
 class ServiceView(ResourceView):
     route_base = 'services'
-    route_prefix = '/api'
     schema_class = ServiceDefinitionSchema
     resource_class = ServiceDefinition

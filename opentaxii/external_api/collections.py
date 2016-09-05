@@ -56,6 +56,5 @@ class CollectionSchema(Schema):
 
 class CollectionView(ResourceView):
     route_base = 'collections'
-    route_prefix = '/api'
     schema_class = CollectionSchema
     resource_class = Collection

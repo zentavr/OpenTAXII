@@ -5,6 +5,8 @@ from libtaxii.constants import (
     MSG_MANAGE_FEED_SUBSCRIPTION_REQUEST,
 )
 
+from ...local import context
+
 from .abstract import TAXIIService
 from .handlers import (
     CollectionInformationRequestHandler,
@@ -47,10 +49,11 @@ class CollectionManagementService(TAXIIService):
 
     @property
     def advertised_collections(self):
-        return self.server.persistence.get_collections(self.id)
+        return Collection.get_all(service_id=self.id)
 
     def get_collection(self, name):
-        return self.server.persistence.get_collection(name, self.id)
+        return context.managers.persistence.get_collection_by_name(
+            name, service_id=self.id)
 
     def get_push_methods(self, collection):
         # Push delivery is not implemented

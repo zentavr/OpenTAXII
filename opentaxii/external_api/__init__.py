@@ -16,6 +16,9 @@ def init_app(app):
     collections.init_app(app, url_prefix='/api')
     services.init_app(app, url_prefix='/api')
 
+    from . import content_blocks
+    content_blocks.init_app(app, url_prefix='/api')
+
     # app.register_error_handler(500, handle_internal_error)
 
 

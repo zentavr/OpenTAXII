@@ -5,7 +5,7 @@ from libtaxii.constants import (
 )
 
 from ...utils import is_content_supported
-from ...entities import ContentBinding
+from ...entities import ContentBinding, Collection
 from ..exceptions import StatusMessageException
 
 from ..converters import (
@@ -50,7 +50,7 @@ class InboxService(TAXIIService):
             self.supported_content_bindings, content_binding, version=version)
 
     def get_destination_collections(self):
-        return self.server.persistence.get_collections(self.id)
+        return Collection.get_all(service_id=self.id)
 
     def validate_destination_collection_names(self, name_list, in_response_to):
 

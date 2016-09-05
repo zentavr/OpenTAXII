@@ -4,12 +4,13 @@ import libtaxii.messages_11 as tm11
 import libtaxii.messages_10 as tm10
 from libtaxii.constants import ST_SUCCESS
 
-from .base_handlers import BaseMessageHandler
+from ....local import context
 from ...exceptions import raise_failure
 from ...converters import (
     inbox_message_to_inbox_message_entity,
     content_block_to_content_block_entity
 )
+from .base_handlers import BaseMessageHandler
 
 log = structlog.getLogger(__name__)
 
@@ -24,7 +25,7 @@ class InboxMessage11Handler(BaseMessageHandler):
         collections = service.validate_destination_collection_names(
             request.destination_collection_names, request.message_id)
 
-        inbox_message = service.server.persistence.create_inbox_message(
+        inbox_message = context.managers.persistence.create_inbox_message(
             inbox_message_to_inbox_message_entity(
                 request, service_id=service.id, version=11))
 

@@ -1,7 +1,7 @@
 import structlog
 import functools
 import importlib
-from flask import Flask, request, make_response, abort, current_app, g
+from flask import Flask, request, make_response, abort, current_app, g, send_from_directory
 
 from .taxii1x.exceptions import (
     raise_failure, StatusMessageException, FailureStatus
@@ -37,7 +37,7 @@ def create_app(config):
     :return: Flask app
     '''
 
-    app = Flask(__name__, static_folder=None)
+    app = Flask(__name__, static_url_path='', static_folder='static')
     app.managers = init_managers(config, app)
     app.opentaxii_config = config
 
@@ -45,8 +45,13 @@ def create_app(config):
 
     # add catch-all rule for TAXII requests
     app.add_url_rule(
-        "/<path:relative_path>", "taxii_endpoints",
+        "/taxii/<path:relative_path>", "taxii_endpoints",
         handle_taxii_request, methods=['GET', 'POST', 'OPTIONS'])
+
+    app.add_url_rule(
+        '/', 'index',
+        lambda: app.send_static_file('index.html'),
+        methods=['GET', 'OPTIONS'])
 
     # FIXME: tune accorting to request content-type
     app.register_error_handler(500, handle_internal_error)

@@ -42,8 +42,8 @@ class Resource(object):
         return context.managers.persistence.get_resource(cls, id)
 
     @classmethod
-    def get_all(cls):
-        return context.managers.persistence.get_resources(cls)
+    def get_all(cls, **kwargs):
+        return context.managers.persistence.get_resources(cls, **kwargs)
 
     def __repr__(self):
         pairs = ["%s=%s" % (k, v) for k, v in sorted(self.__dict__.items())]
